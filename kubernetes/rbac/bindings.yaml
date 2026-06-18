@@ -1,0 +1,81 @@
+# ============================================================
+# Service Accounts — identities for our pods
+# Role Bindings — connect roles to identities
+# ============================================================
+
+# ── Service account for the AIOps engine ─────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aiops-engine-sa
+  namespace: aiops-engine
+  labels:
+    app: aiops-engine
+# automountServiceAccountToken: true because the engine
+# genuinely needs to call the Kubernetes API
+
+---
+# ── Service account for the application ──────────────────────
+# The application does NOT need to call the Kubernetes API
+# So we DISABLE token mounting — reduces attack surface
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aiops-app-sa
+  namespace: production
+automountServiceAccountToken: false
+# If someone hacks this pod, they cannot talk to Kubernetes API
+
+---
+# ── Bind the aiops-engine role to the aiops-engine SA ────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: aiops-engine-binding
+  namespace: production
+subjects:
+  - kind: ServiceAccount
+    name: aiops-engine-sa
+    namespace: aiops-engine
+    # The SA lives in aiops-engine namespace
+    # but gets permissions in production namespace
+roleRef:
+  kind: Role
+  apiGroup: rbac.authorization.k8s.io
+  name: aiops-engine
+
+---
+# ── ArgoCD cluster-wide binding ──────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-manager-sa
+  namespace: argocd
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-manager-binding
+subjects:
+  - kind: ServiceAccount
+    name: argocd-manager-sa
+    namespace: argocd
+roleRef:
+  kind: ClusterRole
+  apiGroup: rbac.authorization.k8s.io
+  name: argocd-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: developer-binding
+  namespace: production
+subjects:
+  - kind: ServiceAccount
+    name: aiops-app-sa
+    namespace: production
+roleRef:
+  kind: Role
+  apiGroup: rbac.authorization.k8s.io
+  name: developer

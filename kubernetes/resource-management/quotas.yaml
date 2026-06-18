@@ -1,0 +1,72 @@
+# ============================================================
+# Resource Quotas — namespace-level resource ceilings
+# LimitRange — per-pod defaults and ceilings
+# Prevents resource exhaustion and noisy neighbour problems
+# ============================================================
+
+# ── Production namespace quota ───────────────────────────────
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: production-quota
+  namespace: production
+spec:
+  hard:
+    # Compute resources
+    requests.cpu: "4"       # All pods together can REQUEST max 4 CPU cores
+    requests.memory: 4Gi    # All pods together can request max 4GB RAM
+    limits.cpu: "8"         # All pods together CANNOT exceed 8 CPU cores
+    limits.memory: 8Gi      # All pods together cannot exceed 8GB RAM
+
+    # Object counts — prevent API server overload
+    pods: "20"              # Maximum 20 pods in this namespace
+    services: "10"          # Maximum 10 services
+    configmaps: "20"        # Maximum 20 configmaps
+    secrets: "20"           # Maximum 20 secrets
+
+    # LoadBalancer services cost money per cloud — limit them
+    services.loadbalancers: "2"
+    services.nodeports: "0" # No NodePort — must use proper ingress
+
+---
+# ── LimitRange for production ────────────────────────────────
+# Sets defaults for pods that do not specify resources
+# Without this, a pod with no limits gets unlimited CPU/memory
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: production-limits
+  namespace: production
+spec:
+  limits:
+  - type: Container
+    # Default values applied when developer does not specify
+    default:
+      cpu: "500m"       # 0.5 CPU cores (500 millicores)
+      memory: "256Mi"   # 256MB RAM
+    defaultRequest:
+      cpu: "100m"       # 0.1 CPU cores — what the pod is guaranteed
+      memory: "128Mi"   # 128MB — what the pod is guaranteed
+    # Hard ceilings — no single container can exceed these
+    max:
+      cpu: "2"          # Max 2 CPU cores per container
+      memory: "1Gi"     # Max 1GB per container
+    min:
+      cpu: "50m"        # Minimum 0.05 cores — prevents zero-resource pods
+      memory: "64Mi"    # Minimum 64MB
+
+---
+# ── Monitoring namespace quota ───────────────────────────────
+# Prometheus needs more memory than a typical application
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: monitoring-quota
+  namespace: monitoring
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi    # More memory for Prometheus time-series storage
+    limits.cpu: "8"
+    limits.memory: 16Gi
+    pods: "20"

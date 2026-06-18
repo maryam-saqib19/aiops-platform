@@ -1,0 +1,74 @@
+# ============================================================
+# Namespace definitions for the AIOps platform
+# Each namespace is a separate security and resource boundary
+# Labels are critical — network policies and OPA use them
+# ============================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+  labels:
+    environment: production
+    team: platform
+    compliance: iso27001
+    # This label tells OPA Gatekeeper to enforce policies here
+    admission.gatekeeper.sh/enabled: "true"
+    # This label tells network policies to enforce isolation here
+    network-policy: enforced
+    # This tells Kubernetes what security standard to apply
+    # restricted = highest security: no root, no privilege escalation
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging
+  labels:
+    environment: staging
+    team: platform
+    compliance: iso27001
+    admission.gatekeeper.sh/enabled: "true"
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    environment: production
+    team: observability
+    # This label allows Prometheus to scrape pods across namespaces
+    monitoring: enabled
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+  labels:
+    environment: production
+    team: platform
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: security
+  labels:
+    environment: production
+    team: security
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiops-engine
+  labels:
+    environment: production
+    team: aiops
+    admission.gatekeeper.sh/enabled: "true"

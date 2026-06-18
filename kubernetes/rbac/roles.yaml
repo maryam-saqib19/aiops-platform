@@ -1,0 +1,117 @@
+# ============================================================
+# RBAC Roles — who can do what in each namespace
+# Principle of least privilege: give the minimum needed
+# Maps to ISO 27001 A.9 — access control
+# ============================================================
+
+# ── Developer role in production ────────────────────────────
+# Developers can VIEW production but not change it
+# All production changes must go through Git and ArgoCD
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: developer
+  namespace: production
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "endpoints"]
+    verbs: ["get", "list", "watch"]
+    # get = read one, list = read all, watch = stream updates
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+    # Developers can read logs to debug issues
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch"]
+  # Deliberately missing: delete, create, update, patch
+  # Deliberately missing: secrets (never expose to developers)
+
+---
+# ── Developer role in staging ────────────────────────────────
+# Developers have full access in staging — they are testing
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: developer
+  namespace: staging
+rules:
+  - apiGroups: ["", "apps", "autoscaling"]
+    resources: ["pods", "services", "deployments",
+                "replicasets", "configmaps"]
+    verbs: ["get", "list", "watch", "create",
+            "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+    # Read secrets but cannot create or modify them
+
+---
+# ── SRE role in production ───────────────────────────────────
+# Site Reliability Engineers can operate production
+# They can debug, scale, and restart but not delete deployments
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sre
+  namespace: production
+rules:
+  - apiGroups: ["", "apps", "autoscaling"]
+    resources: ["pods", "services", "deployments",
+                "replicasets", "horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+    # SREs can exec into pods for emergency debugging
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  # SREs cannot DELETE deployments — that requires a Git commit
+
+---
+# ── AIOps engine role ────────────────────────────────────────
+# The ML engine needs to take actions for autonomous remediation
+# It can scale deployments and restart pods but nothing else
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: aiops-engine
+  namespace: production
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+    # Can scale deployments (update replicas) but not delete
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "delete"]
+    # Can delete individual pods (triggers restart) but not deployments
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+    # Can modify HPA settings to scale up under load
+
+---
+# ── ArgoCD cluster-wide role ─────────────────────────────────
+# ArgoCD must deploy to all namespaces — it needs cluster-wide access
+# This is scoped to only what ArgoCD genuinely needs
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-manager
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+    # ArgoCD can read everything to compare desired vs actual state
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["services", "configmaps", "namespaces",
+                "serviceaccounts"]
+    verbs: ["create", "update", "patch", "delete"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "networkpolicies"]
+    verbs: ["create", "update", "patch", "delete"]

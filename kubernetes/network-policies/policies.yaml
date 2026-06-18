@@ -1,0 +1,168 @@
+# ============================================================
+# Network Policies — zero-trust networking
+# Start with deny-all. Then explicitly allow what is needed.
+# Maps to NIST 800-53 SC-7 — boundary protection
+# ============================================================
+
+# ── Policy 1: Deny ALL traffic in production by default ──────
+# This single policy is the most important security decision today
+# Every new pod is completely isolated until explicitly allowed
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: production
+spec:
+  podSelector: {}
+  # {} means "select all pods in this namespace"
+  policyTypes:
+  - Ingress   # Block all incoming traffic
+  - Egress    # Block all outgoing traffic
+  # No rules = deny everything
+
+---
+# ── Policy 2: Allow DNS ──────────────────────────────────────
+# Without DNS, pods cannot find each other by name
+# This is the minimum required for any pod to function
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: production
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53  # DNS port
+    - protocol: TCP
+      port: 53
+
+---
+# ── Policy 3: Allow pods to talk to each other in production ─
+# Pods within the same namespace can communicate
+# Example: API pod talking to cache pod
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-same-namespace
+  namespace: production
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector: {}
+    # Allow from any pod in THIS namespace
+  egress:
+  - to:
+    - podSelector: {}
+    # Allow to any pod in THIS namespace
+
+---
+# ── Policy 4: Allow Prometheus to scrape metrics ─────────────
+# Prometheus lives in monitoring namespace
+# It needs to reach application pods in production to collect metrics
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scraping
+  namespace: production
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          monitoring: enabled
+          # Only namespaces with this label can scrape
+    ports:
+    - protocol: TCP
+      port: 8080  # Our application metrics port
+
+---
+# ── Policy 5: Allow AIOps engine to reach production ─────────
+# The AIOps engine needs to call the Kubernetes API
+# to perform autonomous remediation actions
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-aiops-engine
+  namespace: production
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          team: aiops
+          # Only pods in namespaces owned by the aiops team
+
+---
+# ── Policy 6: Default deny all in aiops-engine namespace ─────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: aiops-engine
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+
+---
+# ── Policy 7: Allow AIOps engine to reach Prometheus ─────────
+# The ML engine queries Prometheus for metrics every 60 seconds
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-query
+  namespace: aiops-engine
+spec:
+  podSelector:
+    matchLabels:
+      app: aiops-engine
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          monitoring: enabled
+    ports:
+    - protocol: TCP
+      port: 9090  # Prometheus API port
+
+---
+# ── Policy 8: Allow AIOps engine to reach Kubernetes API ─────
+# The remediation engine calls Kubernetes API to restart pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-k8s-api
+  namespace: aiops-engine
+spec:
+  podSelector:
+    matchLabels:
+      app: aiops-engine
+  policyTypes:
+  - Egress
+  egress:
+  - ports:
+    - protocol: TCP
+      port: 443   # Kubernetes API server HTTPS
+    - protocol: TCP
+      port: 6443  # Alternative API server port
