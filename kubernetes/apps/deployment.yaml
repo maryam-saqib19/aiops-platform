@@ -1,0 +1,176 @@
+# ============================================================
+# Production Deployment — aiops-app
+# Every field below has a specific security or reliability reason
+# ============================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiops-app
+  namespace: production
+  labels:
+    app: aiops-app
+    version: v1.0.0
+    team: platform
+spec:
+  # We want 3 copies running at all times
+  replicas: 3
+
+  # This tells the Deployment which pods belong to it
+  selector:
+    matchLabels:
+      app: aiops-app
+
+  # Rolling update strategy — how new versions replace old ones
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      # During an update, allow 1 EXTRA pod temporarily
+      # so capacity never drops below normal
+      maxUnavailable: 0
+      # NEVER allow pods to go below 3 during update
+      # This means ZERO DOWNTIME during deployments
+
+  template:
+    metadata:
+      labels:
+        app: aiops-app
+        version: v1.0.0
+      annotations:
+        # Tells Prometheus to scrape this pod automatically
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+
+    spec:
+      # Use the service account we created on Day 3
+      # automountServiceAccountToken: false on that SA means
+      # this pod CANNOT call the Kubernetes API even if compromised
+      serviceAccountName: aiops-app-sa
+
+      # ── Pod-level security context ──────────────────────────
+      # Applies to ALL containers in this pod
+      securityContext:
+        runAsNonRoot: true
+        # Refuses to start if the container tries to run as root (UID 0)
+        runAsUser: 1000
+        # Forces the container to run as user ID 1000, never root
+        runAsGroup: 1000
+        fsGroup: 2000
+        # Any files written get this group ownership
+        seccompProfile:
+          type: RuntimeDefault
+          # Blocks dangerous Linux system calls at the kernel level
+
+      # ── Anti-affinity: spread pods across different nodes ───
+      # This is the rule that prevents all 3 copies landing
+      # on the same physical machine
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: aiops-app
+            topologyKey: kubernetes.io/hostname
+            # "requiredDuringScheduling" means this is a HARD rule
+            # Kubernetes will refuse to schedule rather than break it
+
+      # ── Spread across availability zones too ────────────────
+      topologySpreadConstraints:
+      - maxSkew: 1
+        # Maximum difference of 1 pod between zones
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        # On a single-node Minikube cluster, "ScheduleAnyway" lets
+        # the pod still schedule even with only 1 zone available
+        labelSelector:
+          matchLabels:
+            app: aiops-app
+
+      containers:
+      - name: aiops-app
+        image: aiops-app:v1.0.0
+        imagePullPolicy: IfNotPresent
+        # IfNotPresent = use the local loaded image, don't try to download
+
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+
+        # ── Container-level security context ──────────────────
+        # The most restrictive settings possible
+        securityContext:
+          allowPrivilegeEscalation: false
+          # The container can NEVER gain more privileges than it started with
+          # Blocks a whole class of privilege escalation attacks
+          readOnlyRootFilesystem: true
+          # The container's filesystem is FROZEN — cannot write new files
+          # Even if hacked, attacker cannot install malware or persist
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+            # Drop EVERY Linux capability (network admin, raw sockets, etc.)
+            # Add back only if specifically needed — we add back nothing
+
+        # ── Resource governance ─────────────────────────────────
+        # Must comply with the LimitRange we set on Day 3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+
+        # ── Health probes ──────────────────────────────────────
+        # Kubernetes uses these to decide pod health and traffic routing
+
+        startupProbe:
+          # "Has the container finished starting up?"
+          httpGet:
+            path: /health
+            port: http
+          failureThreshold: 30
+          periodSeconds: 10
+          # Allows up to 5 minutes (30 x 10s) to start
+          # Liveness probe does not begin checking until this succeeds
+
+        livenessProbe:
+          # "Is the container still alive and functioning?"
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 3
+          # If this fails 3 times in a row, Kubernetes KILLS and
+          # RESTARTS the container
+
+        readinessProbe:
+          # "Is the container ready to receive traffic right now?"
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          failureThreshold: 3
+          # If this fails, Kubernetes REMOVES the pod from the Service
+          # (stops sending it traffic) but does NOT kill it
+
+        # readOnlyRootFilesystem needs writable folders for temp files
+        volumeMounts:
+        - name: tmp-volume
+          mountPath: /tmp
+
+      # Graceful shutdown — give the app 30 seconds to finish
+      # in-flight requests before being killed
+      terminationGracePeriodSeconds: 30
+
+      volumes:
+      - name: tmp-volume
+        emptyDir: {}
+        # In-memory temp folder, automatically wiped when pod dies

@@ -22,3 +22,19 @@ minikube start --profile aws-eks --cpus=2 --memory=2200 \
 
 **Verification:** `kubectl get nodes` showed all 3 nodes Ready within
 4 minutes, with no further CNI errors on rollout.
+
+## Metrics Server missing on Minikube (Day 4)
+
+**Symptom:** `kubectl get hpa` showed `cpu: <unknown>/70%` indefinitely.
+HPA object was correctly configured but had no live metrics to read.
+
+**Root cause:** Minikube does not install the Kubernetes Metrics Server
+by default. The HPA controller requires it to read pod CPU/memory usage.
+
+**Fix:**
+```bash
+minikube addons enable metrics-server --profile aws-eks
+```
+
+**Verification:** After ~60 seconds, `kubectl get hpa` showed real
+percentage values instead of `<unknown>`.

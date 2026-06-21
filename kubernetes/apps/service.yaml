@@ -1,0 +1,77 @@
+# ============================================================
+# Service — gives the application a stable, permanent address
+# ============================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: aiops-app-svc
+  namespace: production
+  labels:
+    app: aiops-app
+spec:
+  selector:
+    app: aiops-app
+    # This Service sends traffic to ANY pod with this label
+    # As pods are created/destroyed, the Service updates automatically
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+  type: ClusterIP
+  # ClusterIP = only reachable from INSIDE the cluster
+  # This is correct — external traffic should go through an Ingress,
+  # not directly to the application
+
+---
+# ============================================================
+# HorizontalPodAutoscaler — automatically scales based on load
+# ============================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: aiops-app-hpa
+  namespace: production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: aiops-app
+    # This HPA controls the aiops-app Deployment we just created
+
+  minReplicas: 3
+  # Never go below 3 — matches our HA requirement
+  maxReplicas: 10
+  # Never exceed 10 — prevents runaway scaling costs
+
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+        # If average CPU across all pods exceeds 70%, scale up
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+        # If average memory exceeds 80%, scale up
+
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      # Wait 60 seconds of sustained high load before scaling up
+      # Prevents reacting to brief, harmless spikes
+      policies:
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+        # Add maximum 2 pods per 60 seconds — controlled growth
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      # Wait 5 FULL minutes of sustained LOW load before scaling down
+      # Scaling down slowly prevents "flapping" — rapidly
+      # scaling up and down repeatedly

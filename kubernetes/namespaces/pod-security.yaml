@@ -1,0 +1,35 @@
+# ============================================================
+# Pod Security Standards
+# Three levels exist: privileged, baseline, restricted
+# We apply 'restricted' to production — the strictest level
+# ============================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+  labels:
+    environment: production
+    team: platform
+    compliance: iso27001
+    admission.gatekeeper.sh/enabled: "true"
+    network-policy: enforced
+
+    # ── Pod Security Standards enforcement ──────────────────
+    # "enforce" = BLOCK any pod that violates this level
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.28
+
+    # "audit" = ALLOW but log a warning in the audit trail
+    pod-security.kubernetes.io/audit: restricted
+
+    # "warn" = ALLOW but show a warning to the person deploying
+    pod-security.kubernetes.io/warn: restricted
+
+# Restricted level requires ALL of:
+#   - runAsNonRoot: true
+#   - allowPrivilegeEscalation: false
+#   - capabilities.drop: [ALL]
+#   - seccompProfile.type: RuntimeDefault
+#   - no privileged containers
+#   - no hostNetwork, hostPID, or hostIPC
