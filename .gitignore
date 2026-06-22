@@ -1,0 +1,20 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI configs
+.terraform.lock.hcl
+
+# Sensitive
+*.pem
+*.key
+
+# OS
+.DS_Store
+
