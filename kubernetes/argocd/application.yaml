@@ -1,0 +1,49 @@
+# ============================================================
+# ArgoCD Application — connects Git to the cluster
+# This single object is the entire GitOps engine for our app
+# ============================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aiops-platform
+  namespace: argocd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+  # This finalizer ensures that if the Application is deleted,
+  # ArgoCD also cleans up the resources it created — no orphans left behind
+
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/maryam-saqib19/aiops-platform.git
+    targetRevision: main
+    path: kubernetes/apps
+    # ArgoCD watches ONLY this folder — deployment.yaml and service.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: production
+
+  syncPolicy:
+    automated:
+      prune: true
+      # If a file is DELETED from Git, ArgoCD deletes the matching
+      # resource from the cluster too — Git is the single source of truth
+      selfHeal: true
+      # THE MOST IMPORTANT SETTING TODAY
+      # If someone manually changes the cluster (kubectl edit, kubectl scale),
+      # ArgoCD automatically reverts it back to match Git within ~3 minutes
+      allowEmpty: false
+
+    syncOptions:
+    - CreateNamespace=true
+    - PrunePropagationPolicy=foreground
+
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
