@@ -13,11 +13,11 @@ provider "azurerm" {
   features {}
 }
 
-variable "location" { default = "westeurope" }
-variable "environment" { default = "production" }
-variable "project_name" { default = "aiops-platform" }
+variable "location"           { default = "westeurope" }
+variable "environment"        { default = "production" }
+variable "project_name"       { default = "aiops-platform" }
 variable "kubernetes_version" { default = "1.28" }
-variable "node_count" { default = 3 }
+variable "node_count"         { default = 3 }
 
 locals {
   resource_prefix = "${var.project_name}-${var.environment}"

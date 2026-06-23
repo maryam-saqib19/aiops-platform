@@ -18,3 +18,12 @@ override.tf.json
 # OS
 .DS_Store
 
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Environment files
+.env

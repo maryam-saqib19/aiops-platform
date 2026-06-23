@@ -42,3 +42,17 @@ machine learning, and fixes them autonomously without human intervention.
 - NIST 800-53 — security and privacy controls
 - ISO/IEC 42001 — AI management system
 - GDPR — data protection and privacy
+
+## Terraform Multi-Cloud Validation Status
+
+| Cloud | terraform validate | terraform plan |
+|-------|--------------------|-----------------|
+| AWS   | Passing | 29 resources calculated (mock credentials) |
+| Azure | Passing | Requires live az login or service principal — AzureRM enforces real Entra ID authentication even for plan generation, with no offline mock mode |
+| GCP   | Passing | Requires live gcloud auth application-default login |
+
+This reflects a genuine architectural difference between cloud providers'
+Terraform providers: AWS supports fully offline plan generation via skip
+flags for CI/local testing, while Azure and GCP require authenticated API
+access even to calculate a plan. All three configurations are syntactically
+and structurally valid as confirmed by terraform validate.
