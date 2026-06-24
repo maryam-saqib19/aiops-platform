@@ -33,14 +33,15 @@ pipeline {
         // ── Stage 2: Unit Tests ──────────────────────────────
         // Fail fast — no point building a broken image
         stage('Unit Tests') {
-            steps {
-                sh '''
-   		   cd app
-                   pip3 install -r requirements.txt --quiet
-                   pip3 install pytest --quiet
-                   python3 -m pytest tests/ -v
-               '''            }
-        }
+    steps {
+        sh '''
+            cd app
+            pip3 install -r requirements.txt --quiet
+            pip3 install pytest --quiet
+            python3 -m pytest tests/ -v
+        '''
+    }
+}
 
         // ── Stage 3: Security Scan (pre-build) ──────────────
         stage('Lint and Security Scan') {
