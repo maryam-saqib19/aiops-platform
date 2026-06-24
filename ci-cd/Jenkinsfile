@@ -35,13 +35,11 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 sh '''
-                    pip3 install -r requirements.txt --quiet
-		    pip3 install pytest --quiet
-                    cd app
-                    
-                    python3 -m pytest tests/ -v
-                '''
-            }
+   		   cd app
+                   pip3 install -r requirements.txt --quiet
+                   pip3 install pytest --quiet
+                   python3 -m pytest tests/ -v
+               '''            }
         }
 
         // ── Stage 3: Security Scan (pre-build) ──────────────
