@@ -35,9 +35,10 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 sh '''
+                    pip3 install -r requirements.txt --quiet
+		    pip3 install pytest --quiet
                     cd app
-                    pip3 install -r requirements.txt --break-system-packages --quiet
-                    pip3 install pytest --break-system-packages --quiet
+                    
                     python3 -m pytest tests/ -v
                 '''
             }
@@ -47,7 +48,7 @@ pipeline {
         stage('Lint and Security Scan') {
             steps {
                 sh '''
-                    pip3 install bandit --break-system-packages --quiet
+                    pip3 install bandit --quiet
                     bandit -r app/ -ll || true
                 '''
                 // || true: report findings without blocking the demo pipeline
