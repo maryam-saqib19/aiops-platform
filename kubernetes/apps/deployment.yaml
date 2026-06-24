@@ -26,9 +26,12 @@ spec:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
-      # During an update, allow 1 EXTRA pod temporarily
-      # so capacity never drops below normal
-      maxUnavailable: 0
+      maxUnavailable: 1
+      # Changed from 0 to 1 — with hard pod anti-affinity and exactly
+      # 3 nodes matching 3 replicas, maxUnavailable:0 creates a deadlock
+      # during rollouts: there is no spare node for a 4th (new) pod to
+      # land on while anti-affinity blocks it from sharing a node with
+      # an old pod. Allowing 1 unavailable pod frees a node immediately.
       # NEVER allow pods to go below 3 during update
       # This means ZERO DOWNTIME during deployments
 
