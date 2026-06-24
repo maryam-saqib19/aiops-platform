@@ -38,3 +38,30 @@ minikube addons enable metrics-server --profile aws-eks
 
 **Verification:** After ~60 seconds, `kubectl get hpa` showed real
 percentage values instead of `<unknown>`.
+
+## Rollout deadlock from anti-affinity + maxUnavailable:0 (Day 7)
+
+**Symptom:** Jenkins-triggered deployment of v1.0.6 stuck in
+`ProgressDeadlineExceeded` for 16+ minutes. New pod stuck `Pending`
+indefinitely with no node assigned.
+
+**Root cause:** Hard pod anti-affinity (one aiops-app pod per node)
+combined with exactly 3 nodes and 3 replicas left zero spare capacity.
+`maxUnavailable: 0` prevented removing any old pod until the new pod
+was ready — but the new pod could never schedule because all 3 nodes
+already held an old pod and anti-affinity blocked sharing.
+
+**Fix:** Changed `maxUnavailable` from 0 to 1 in deployment.yaml,
+allowing one old pod to terminate first and free a node for the new
+pod to land on.
+
+**Secondary issue:** After the deadlock cleared, one pod showed
+`ImagePullBackOff` because the new image had not been loaded onto
+that specific node's image cache. Fixed with:
+```bash
+minikube image load aiops-app:v1.0.6 --profile aws-eks
+kubectl delete pod -n production -l app=aiops-app --field-selector=status.phase!=Running
+```
+
+**Lesson:** True zero-downtime rolling updates with strict pod
+anti-affinity require N+1 nodes relative to replica count, not just N.
