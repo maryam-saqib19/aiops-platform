@@ -93,7 +93,7 @@ spec:
 
       containers:
       - name: aiops-app
-        image: aiops-app:v1.0.4
+        image: aiops-app:v1.0.6
         imagePullPolicy: IfNotPresent
         # IfNotPresent = use the local loaded image, don't try to download
 
