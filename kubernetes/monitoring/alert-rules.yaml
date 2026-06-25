@@ -1,0 +1,47 @@
+# ============================================================
+# Custom alert rules for the AIOps platform
+# These supplement the default kube-prometheus-stack rules
+# ============================================================
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: aiops-platform-rules
+  namespace: monitoring
+  labels:
+    release: prometheus-stack
+    # This label is REQUIRED — Prometheus only picks up rules
+    # matching the ruleSelector configured by the Helm chart
+spec:
+  groups:
+  - name: aiops-app.rules
+    interval: 30s
+    rules:
+
+    - alert: AIOpsAnomalyDetected
+      expr: aiops_anomaly_score > 0.8
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "AIOps detected an anomaly (score: {{ $value }})"
+        description: "Anomaly score has exceeded 0.8 for over 1 minute"
+
+    - alert: PodCrashLooping
+      expr: |
+        rate(kube_pod_container_status_restarts_total{namespace="production"}[15m]) * 900 > 3
+      for: 0m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Pod {{ $labels.pod }} is crash looping"
+
+    - alert: DeploymentReplicasMismatch
+      expr: |
+        kube_deployment_spec_replicas{namespace="production"}
+        != kube_deployment_status_replicas_available{namespace="production"}
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Deployment {{ $labels.deployment }} has fewer replicas than desired"
