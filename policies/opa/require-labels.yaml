@@ -1,0 +1,52 @@
+# ============================================================
+# Policy 3: Require team and app labels on all pods
+# Labels are required for: network policies to select pods,
+# Prometheus service discovery, ArgoCD tracking, and
+# audit trail correlation — unlabelled pods are invisible
+# to all these systems simultaneously
+# ============================================================
+
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequiredlabels
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequiredLabels
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            labels:
+              type: array
+              items:
+                type: string
+  targets:
+  - target: admission.k8s.gatekeeper.sh
+    rego: |
+      package k8srequiredlabels
+
+      violation[{"msg": msg}] {
+        required := input.parameters.labels[_]
+        not input.review.object.metadata.labels[required]
+        msg := sprintf("Pod must have label '%v'", [required])
+      }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredLabels
+metadata:
+  name: require-pod-labels
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+    - apiGroups: [""]
+      kinds: ["Pod"]
+    namespaces:
+    - production
+  parameters:
+    labels:
+    - app
+    - team 
