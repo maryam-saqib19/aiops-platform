@@ -1,0 +1,50 @@
+# ============================================================
+# Custom Falco rules for the AIOps platform
+# These supplement the 200+ built-in Falco rules
+# ============================================================
+
+customRules:
+  custom-aiops-rules.yaml: |-
+
+    # Rule 1: Detect unexpected outbound connections from production pods
+    # Our aiops-app should only receive inbound traffic, never initiate
+    # outbound connections to arbitrary hosts
+    - rule: Unexpected Outbound Connection in Production
+      desc: Detects unexpected outbound connections from production namespace pods
+      condition: >
+        outbound and
+        k8s.ns.name = "production" and
+        not fd.sip.name in (allowed_outbound_destinations)
+      output: >
+        Unexpected outbound connection from production pod
+        (pod=%k8s.pod.name namespace=%k8s.ns.name
+        destination=%fd.sip.name:%fd.sport
+        command=%proc.cmdline)
+      priority: WARNING
+      tags: [network, aiops-platform]
+
+    # Rule 2: Detect file writes to sensitive paths inside production containers
+    # Our app should only write to /tmp — anything else is suspicious
+    - rule: Write to Sensitive Path in Production
+      desc: Detects file writes outside of /tmp in production containers
+      condition: >
+        open_write and
+        k8s.ns.name = "production" and
+        not fd.name startswith /tmp and
+        not fd.name startswith /proc and
+        not fd.name startswith /dev
+      output: >
+        Sensitive file write detected in production
+        (pod=%k8s.pod.name file=%fd.name
+        command=%proc.cmdline user=%user.name)
+      priority: ERROR
+      tags: [filesystem, aiops-platform]
+
+    # Rule 3: Detect privilege escalation attempts
+    # No process in any of our containers should ever attempt this
+    
+    # List of allowed outbound destinations for production pods
+    - list: allowed_outbound_destinations
+      items:
+      - "prometheus-stack-prometheus.monitoring.svc.cluster.local"
+      - "loki.monitoring.svc.cluster.local"
