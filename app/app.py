@@ -179,3 +179,13 @@ if __name__ == '__main__':
     logger.info("AIOps application starting on port 8080")
     app.run(host='0.0.0.0', port=8080)
 
+
+
+@app.route('/integration-test')
+def integration_test():
+    """Endpoint added during Day 13 integration testing."""
+    return jsonify({
+        "test": "integration",
+        "day": 13,
+        "message": "Full platform integration verified"
+    })
