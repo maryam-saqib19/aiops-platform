@@ -130,14 +130,16 @@ def metrics_demo():
 def simulate_anomaly():
     """
     Manually set the anomaly score.
+    Matches the real Isolation Forest convention: score_samples() output,
+    where MORE NEGATIVE = MORE ANOMALOUS. Calibrated alert threshold is -0.40.
     Use this during your presentation to show the AIOps engine detecting a problem.
-    Visit: http://localhost:8080/simulate-anomaly?score=0.95
+    Visit: http://localhost:8080/simulate-anomaly?score=-0.55
     """
-    # Get the score from the URL, default to 0.95 if not provided
-    score = float(request.args.get('score', 0.95))
+    # Get the score from the URL, default to -0.55 (a clear anomaly) if not provided
+    score = float(request.args.get('score', -0.55))
 
-    # Make sure score stays between 0 and 1
-    score = max(0.0, min(1.0, score))
+    # No clamping — real Isolation Forest scores are unbounded,
+    # typically roughly -0.6 to +0.2, not a fixed 0-1 range
 
     # Update the Prometheus gauge
     ANOMALY_SCORE.set(score)
@@ -147,8 +149,8 @@ def simulate_anomaly():
     return jsonify({
         "anomaly_score": score,
         "message": f"Anomaly score set to {score}",
-        "threshold": 0.8,
-        "will_trigger_remediation": score > 0.8
+        "threshold": -0.40,
+        "will_trigger_remediation": score < -0.40
     })
 
 

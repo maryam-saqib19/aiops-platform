@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: aiops-anomaly-alerts
+  namespace: monitoring
+  labels:
+    release: prometheus-stack
+spec:
+  groups:
+    - name: aiops-anomaly-detection
+      rules:
+        - alert: AIOpsAnomalyScoreLow
+          expr: aiops_anomaly_score < -0.40
+          for: 1m
+          labels:
+            severity: warning
+            layer: aiops
+            namespace: monitoring
+          annotations:
+            summary: "Anomaly detected on {{ $labels.instance }}"
+            description: "Isolation Forest anomaly score is {{ $value }} on instance {{ $labels.instance }} (job={{ $labels.job }}), below the calibrated threshold of -0.40."

@@ -1,0 +1,26 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: aiops-slack-routing
+  namespace: monitoring
+spec:
+  route:
+    receiver: "slack-notifications"
+    groupBy: ["alertname", "instance"]
+    groupWait: 10s
+    groupInterval: 5m
+    repeatInterval: 1h
+    matchers:
+      - name: layer
+        value: aiops
+        matchType: "="
+  receivers:
+    - name: "slack-notifications"
+      slackConfigs:
+        - apiURL:
+            name: slack-webhook-secret
+            key: webhook-url
+          channel: "#aiops-alerts"
+          sendResolved: true
+          title: "{{ .CommonAnnotations.summary }}"
+          text: "{{ .CommonAnnotations.description }}"
