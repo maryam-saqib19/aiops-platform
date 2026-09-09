@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: aiops-app
+  namespace: monitoring
+  labels:
+    app: aiops-app
+spec:
+  namespaceSelector:
+    matchNames:
+      - production
+
+  selector:
+    matchLabels:
+      app: aiops-app
+
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+
